@@ -1,11 +1,11 @@
-c = a.getContext`2d`, ot = killedPassengers = 0 //title animation time, some temporary variable, old time, score
+c = a.getContext`2d`, ot = killedPassengers = recycledDebris = 0 //title animation time, some temporary variable, old time, score
 s = 0 //gamestate (0 = menu, 1-5 = game, 9 = game over)
 o = 0
 
-const images = ['sat', 'trash', 'rock', 'asteroid', 'iss', 'cubesat', 'sign', 'hole', 'astronaut', 'touristShip']
+const images = ['sat', 'trash', 'rock', 'asteroid', 'iss', 'cubesat', 'sign', 'hole', 'astronaut', 'touristShip', 'can', 'cash', 'bottle']
 for (i in images) {
   let img = new Image
-  img.src = `${images[i]}.png`
+  img.src = `images/${images[i]}.png`
   images[i] = img
 }
 const debrisImages = images.slice(0, 6)
@@ -29,7 +29,7 @@ lim = (x, min, max) => x < min ? min : x > max ? max : x; //limits the number to
 collision = (r1, r2) => r1.x + r1.w > r2.x && r1.x < r2.x + r2.w && r2.y + r2.h > r1.y && r2.y < r1.y + r1.h
 
 // Alternative color schemes 'de3c4bfbf5f36699CCe28413000022'
-getC = (ci) => `#${'ff7e69F2D0A40D1B2AF7F7FF000009458B00'.substr(ci * 6, 6)}`
+getC = ci => `#${'ff7e69F2D0A40D1B2AF7F7FF000009458B00'.substr(ci * 6, 6)}`
 
 
 document.body.style.background = getC(4)
@@ -78,7 +78,7 @@ class Star {
     this.lif = rnd(2, 4)
   }
   upd(t) {
-    let phase = ~~(Math.cos(this.freq * t / 1e3) + this.lif) // blinking, pixelated stars at different frequencies
+    let phase = ~~(Math.cos(this.freq * t) + this.lif) // blinking, pixelated stars at different frequencies
     c.fillRect(this.x, this.y, phase, phase)
   }
 }
@@ -87,19 +87,23 @@ class Star {
 class Debris {
   dead = !1
   constructor() {
+    this.parent = arguments[0] //saves a few lines of code
+    //because now every debris has a parent, we can confidently call the parent's properties
+    //without having to check if the parent property exists
+
     this.image = debrisImages[Math.floor(Math.random() * debrisImages.length)]
 
     this.w = this.image.width * SCALING //TODO: don't use in final production, waste of memory
     this.h = this.image.height * SCALING
-    this.weight = this.w * this.h
+    this.weight = this.w * this.h / 1e4
 
     o = rndBool()
-    const [x, y] = randomPointOnScreenEdge(o)
-    this.x = x - this.w * o, this.y = y - this.h * o
+    const [x1, y1] = randomPointOnScreenEdge(o)
+    this.x = x1 - this.w * o, this.y = y1 - this.h * o
 
-    this.vx = this.x - rnd(0, w)
-    this.vy = this.y - rnd(0, h)
-    this.vx /= -w, this.vy /= -h
+    this.vx = rnd(0, w) - this.x
+    this.vy = rnd(0, h) - this.y
+    this.vx /= w, this.vy /= h
 
     this.wihtinScreen = !1 //false
   }
@@ -118,6 +122,16 @@ class Debris {
       if (this.y < 0) this.vy = Math.abs(this.vy)
       if (this.y + this.h > h) this.vy = -Math.abs(this.vy)
     }
+  }
+}
+
+class TouristTrash extends Debris {
+  constructor() {
+    super(arguments[0])
+    this.x = this.parent.x, this.y = this.parent.y
+    this.image = images[Math.floor(Math.random() * 3 + 10)]
+    this.w = this.image.width * SCALING //TODO: don't use in final production, waste of memory
+    this.h = this.image.height * SCALING
   }
 }
 
@@ -153,7 +167,6 @@ class PassengerShip extends Target {
     this.vy = y1 - y
     this.x0 = x
     this.y0 = y
-
   }
   upd(t) {
     super.upd(t)
@@ -168,32 +181,38 @@ class PassengerShip extends Target {
     c.stroke()
     c.globalAlpha = 1
 
+    if (Math.random() < .01)
+      gamemap.push(new TouristTrash(this))
+
+
     if (this.remainingCountdown > 0) {
       c.fillText("Tourist ship incoming", (this.x0 + this.vx) / 2 + this.w / 2, (this.y0 + this.vy) / 2)
       c.fillText(this.remainingCountdown.toFixed(1), (this.x0 + this.vx) / 2 + this.w / 2, (this.y0 + this.vy) / 2 + this.h / 2)
-    }
-    else {
-      //move and draw the ship
-      this.x = this.x0 - this.vx * this.remainingCountdown / 5
-      this.y = this.y0 - this.vy * this.remainingCountdown / 5
+    } else
+      //move and draw the ship (comma separated, so it counts as one line and I dont need brackets around the else statement)
+      this.x = this.x0 - this.vx * this.remainingCountdown / 5,
+        this.y = this.y0 - this.vy * this.remainingCountdown / 5,
+        drawRotated(this)
 
-      drawRotated(this)
-    }
+
     if (this.remainingCountdown <= 0) {
       if (collision(p, b)) {
         //PassengerShip colliding with the player
         spawnParticles(p, 4)
         s = 9 //game over
       }
+
       for (let deb of gamemap.filter(element => element instanceof Debris)) {
         //PassengerShip colliding with debris
-        if (collision(b, deb)) {
+        if (collision(b, deb) && deb.parent != this) {
           spawnParticles(deb, 2)
           deb.dead = !0
           killedPassengers++
         }
       }
     }
+
+
     this.dead = this.dead || this.remainingCountdown <= -5
   }
 }
@@ -223,12 +242,18 @@ class BlackHole extends Target {
 
 
 
-    // -54 means the default lifetime is 4 seconds
     if (this.remainingCountdown <= 0) {
       if (collision(p, this)) {
         //BlackHole colliding with the player
         spawnCorpse(p, this)
         s = 9 //game over
+      }
+
+      let extendedHb = {
+        x: this.x - 100,
+        y: this.y - 100,
+        w: this.w + 200,
+        h: this.h + 200
       }
 
       for (let deb of gamemap.filter(element => element instanceof Debris)) {
@@ -239,10 +264,15 @@ class BlackHole extends Target {
 
           this.w /= this.size
           this.h /= this.size
-          this.size = lim(this.size + .2, 0, 2) //increase size with each debris swallowed, up to 2x
+          this.size = lim(this.size + .1, 0, 1.5) //increase size with each debris swallowed, up to 2x
           this.w *= this.size
           this.h *= this.size
+
+          recycledDebris += deb.weight
         }
+
+        //attract debris that's close enough
+        collision(extendedHb, deb) && this.accelerateTowards(deb)
       }
     }
 
@@ -252,14 +282,22 @@ class BlackHole extends Target {
       spawnParticles(this, 4)
     }
   }
+  accelerateTowards(target) {
+    const dx = this.x - target.x
+    const dy = this.y - target.y
+    const d = Math.sqrt(dx * dx + dy * dy)
+    const f = .08 / d
+    target.vx += dx * f
+    target.vy += dy * f
+  }
 }
 
 txt = ""
 
 gamemap = []
 //loads the next map and sets all 
-spawnNewEnemies = () => {
-  for (i = 0; i < 4; i++) //TODO: way too long, use some JS1k thing
+spawnNewEnemies = e => {
+  for (i = 0; i < 2; i++) //TODO: adjust the difficulty
     gamemap.push(new Debris)
   gamemap.push(new (rndBool() ? PassengerShip : BlackHole))
 }
@@ -276,7 +314,7 @@ spawnCorpse = (target, hole) => {
 }
 
 let lastSpawnTime = 0;
-gameLoop = (nt) => {
+gameLoop = nt => {
   //clear the canvas and adjust to desired size
   // a.width = w = innerWidth, a.height = h = innerHeight
   a.width = w = a.height = h = 1280
@@ -290,18 +328,16 @@ gameLoop = (nt) => {
 
   t = (nt - ot) / 7 //calculate delta time and store as t
   ot = nt
+  nt /= 1e3 //convert to seconds
 
-  //spawn new enemies each 5 seconds
-  if (nt - lastSpawnTime > 3000)
-    lastSpawnTime = nt, spawnNewEnemies()
+  //spawn new enemies each 3 seconds
 
 
   //draw the background and particles
   setC(4)
-
   for (pa of bg) pa.upd(nt)
 
-  c.font = "30px Impact, Arial";
+  c.font = "90px Impact, Arial";
   setC(1);
   c.fillText(txt, 20, 50);
 
@@ -312,63 +348,59 @@ gameLoop = (nt) => {
       s++ //after 1 frame, go to state 1
     case 1:
       //short intro sequence
-      c.font = "90px Impact, Arial";
-      c.fillText("Welcome to SPACE", 20, 150);
 
-      p.mousex = lim(nt * w / 2e3, 0, 2 * w / 3)
+      p.mousex = lim(nt * w / 2, 0, 2 * w / 3)
       p.mousey = h / 3 // move the player in a smooth curve from the bottom left corner to somewhere in the middle
-
-      if (nt > 1.2e3)
-        p.mousex = p.mousey = void 0, //stop the animated motion
-          c.fillText("Click anywhere to move", 20, 280);
+      if (nt > 1.2) {
+        s++ //after 1.2 seconds, go to state 2 
+        p.mousex = p.mousey = void 0 //undefined
+      }
+    case 2:
+      c.fillText("Welcome to Space", 20, 150);
+      c.font = "50px Impact, Arial";
+      nt > 2.5 && c.fillText("Press anywhere to move", 20, 210);
+      setC(4);
+      nt > 1.2 && !p.mousex && c.fillText("Wow, I'm in space!", 900, 710);
       break
 
     case 3:
       //storyline sequence
-      c.font = "50px Impact,Arial";
+      c.font = "45px Impact,Arial";
       setC(2);
-      c.fillText("Once uppon a time, space was vast and empty", 20, 400)
-      c.fillText("But as people began exploring it, ", nt > 2e3 ? 20 : 1e6, 450)
-      c.fillText("some SPACE for incoming ships.", nt > 2e3 ? 20 : 1e6, 500)
-      c.fillText("Can you take care of it?", nt > 3e3 ? 20 : 1e6, 550)
-      c.fillRect(nt > 4e3 ? 20 : 1e6, 600, 200, 70)
-      setC(1);
-      c.fillText("I'm on it", nt > 4e3 ? 50 : 1e6, 650)
-
-      break
-
-    case 3:
-      c.font = "20px Impact,Arial";
-      setC(2);
-      c.fillText("Welcome SPACE Ranger", 20, 400)
-      c.fillText("There's a lot of debris floating around, and we need to make", nt > 2e3 ? 20 : 1e6, 450)
-      c.fillText("some SPACE for incoming ships.", nt > 2e3 ? 20 : 1e6, 500)
-      c.fillText("Can you take care of it?", nt > 3e3 ? 20 : 1e6, 550)
-      c.fillRect(nt > 4e3 ? 20 : 1e6, 600, 200, 70)
-      setC(1);
-      c.fillText("I'm on it", nt > 4e3 ? 50 : 1e6, 650)
-      s += nt > 9e3
-      break
+      c.fillText("Welcome Space Ranger", 20, 400)
+      c.fillText("Bilionaire space tourists have been producing a lot of waste", 20, 450)
+      c.fillText("and we're running out of space for new ships. Your job is to", 20, 500)
+      c.fillText("clean up and protect our customers from incoming space waste.", 20, 550)
+      c.fillText("Can you take care of it?", 20, 650)
     case 4:
-
-      c.font = "20px Impact,Arial";
-      setC(2);
-      c.fillText("Make SPACE for incoming ships by moving away SPACE debris", 20, 400)
-      c.fillText("Grab the broken satelites by pressing SPACE", 20, 450)
-      c.fillText("Move around using WASD or the arrow keys", 20, 500)
-      s += nt > 16e3
+      s == 4 && c.fillText("Good luck, and try not to die!", 20, 400)
+      nt % 1 < .5 && c.fillText("Press to continue", 20, 750)
       break
 
 
     case 9:
-      c.fillText("Oh no, you died", 20, 512)
-      break
-    case 4:
-      //txt = "You have killed " + killedPassengers + " passengers"
+      //GAME OVER SCREEN
+      c.fillText("What are you doing ranger!", 20, 512)
+      c.font = "30px Impact, Arial";
 
-      //if the action key isn't pressed, let go of the attached debris
-      if (!p.mousex)
-        p.attached.clear()
+
+      if (killedPassengers > 1)
+        c.fillText(killedPassengers + " passengers got killed during your shift!", 20, 512 + 100)
+
+
+      if (recycledDebris > 1)
+        c.fillText("At least you recycled " + recycledDebris.toFixed(1) + " tons of trash", 20, 512 + 150)
+      p.x = p.y = -1e6
+    //no break statement, so the rest of the game will continue running
+    case 5:
+      c.font = "30px Impact, Arial";
+
+
+      if (nt - lastSpawnTime > 4 && s != 9)
+        lastSpawnTime = nt, spawnNewEnemies()
+
+      //&& only evaluates the right side if the left side is true, its a shorter if statement
+      !p.mousex && p.attached.clear() //if the action key isn't pressed, let go of the attached debris
 
       //draw all the attached objects and update their velocities
       c.lineWidth = 3;
@@ -459,15 +491,16 @@ startGame()
 onclick = e => {
   x = e.pageX; y = e.pageY;
   switch (s) {
-    default: s = 3; break;// menu clicks, skip menu
-    case 3: s = 4; break;// skip the storyline
-    case 4: //game clicks
-    case 9: // game over
+    case 1: break //cant skip the intro animation
+    default: s++; break// menu clicks, skip menu
+    case 5: break//game clicks 
+    case 9: setTimeout(e => { location.reload() }, 2e4)// game over
   }
 }
 
-onpointerup = onpointerdown = onpointermove = e => {
-  if (e.pressure) {
+onpointerup = ontouchend = onpointerdown = onpointermove = ontouchmove = e => {
+  if (e.touches ? e.touches.length : e.pressure) {
+    if (e.touches) e = e.touches[0]
     const rect = a.getBoundingClientRect()
     p.mousex = (e.clientX - rect.left) * w / rect.width;
     p.mousey = (e.clientY - rect.top) * h / rect.height
