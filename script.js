@@ -1,4 +1,4 @@
-c = a.getContext`2d`, ot = killedPassengers = recycledDebris = 0 //title animation time, some temporary variable, old time, score
+c = a.getContext`2d`, ot = killedPassengers = recycledDebris = timeSurvived = 0 //title animation time, some temporary variable, old time, score
 s = 0 //gamestate (0 = menu, 1-5 = game, 9 = game over)
 o = 0
 
@@ -196,24 +196,21 @@ class PassengerShip extends Target {
 
 
     if (this.remainingCountdown <= 0) {
-      if (collision(p, b)) {
+      if (collision(p, b))
         //PassengerShip colliding with the player
-        spawnParticles(p, 4)
-        s = 9 //game over
-      }
+        s = 9,//game over
+          txt = "You crashed into a spaceship, 0h into your shift",
+          spawnParticles(p, 4)
 
-      for (let deb of gamemap.filter(element => element instanceof Debris)) {
+
+      for (let deb of gamemap.filter(element => element instanceof Debris))
         //PassengerShip colliding with debris
-        if (collision(b, deb) && deb.parent != this) {
-          spawnParticles(deb, 2)
-          deb.dead = !0
-          killedPassengers++
-        }
-      }
+        if (collision(b, deb) && deb.parent != this)
+          deb.dead = !0,
+            killedPassengers++,
+            spawnParticles(deb, 2)
     }
-
-
-    this.dead = this.dead || this.remainingCountdown <= -5
+    this.dead |= this.remainingCountdown <= -5 // if it's dead, keep it dead, if not and older than 5s kill it
   }
 }
 
@@ -243,11 +240,12 @@ class BlackHole extends Target {
 
 
     if (this.remainingCountdown <= 0) {
-      if (collision(p, this)) {
+      if (collision(p, this))
         //BlackHole colliding with the player
-        spawnCorpse(p, this)
-        s = 9 //game over
-      }
+        s = 9, //game over
+          txt = "You fell into a black hole after just 0h",
+          spawnCorpse(p, this)
+
 
       let extendedHb = {
         x: this.x - 100,
@@ -264,7 +262,7 @@ class BlackHole extends Target {
 
           this.w /= this.size
           this.h /= this.size
-          this.size = lim(this.size + .1, 0, 1.5) //increase size with each debris swallowed, up to 2x
+          this.size = lim(this.size + .1, 0, 1.5) //increase size with each debris swallowed, up to 1.5x
           this.w *= this.size
           this.h *= this.size
 
@@ -285,14 +283,14 @@ class BlackHole extends Target {
   accelerateTowards(target) {
     const dx = this.x - target.x
     const dy = this.y - target.y
-    const d = Math.sqrt(dx * dx + dy * dy)
-    const f = .08 / d
-    target.vx += dx * f
-    target.vy += dy * f
+    const d = Math.sqrt(dx * dx + dy * dy) * 50
+    target.vx = lim(target.vx + dx / d * t, -3, 3)
+    target.vy = lim(target.vy + dy / d * t, -3, 3)
   }
 }
 
-txt = ""
+
+txt = "Welcome to Space"
 
 gamemap = []
 //loads the next map and sets all 
@@ -308,10 +306,37 @@ spawnParticles = (target, color = 1) => {
   for (i = rnd(20, 35); i--;)
     particles.push(new Particle(target.x + target.w / 2, target.y + target.h / 2, color))
 }
+
+getGrade = e => {
+  grade = "D"
+  if (killedPassengers < 1)
+    grade = "S"
+  else if (killedPassengers < 10)
+    grade = "A"
+  else if (killedPassengers < 20)
+    grade = "B"
+  else if (killedPassengers < 50)
+    grade = "C"
+
+
+  if (recycledDebris < 100)
+    grade += "-"
+  else if (recycledDebris > 250)
+    grade += "+"
+  else if (recycledDebris > 1000)
+    grade += "++"
+
+  return grade
+}
+
 spawnCorpse = (target, hole) => {
   dx = hole.x + hole.w / 2 - target.x - target.w / 2, dy = hole.y + hole.h / 2 - target.y - target.h / 2
   particles.push(new FallIntoHole(target.x + target.w / 2, target.y + target.h / 2, target.image, dx / 20, dy / 20))
 }
+
+// converts the time in ms to "working hours" of the shift
+// each h is actually 10 seconds long, 8 working hours => 80s per round
+getH = e => timeSurvived / 1e3
 
 let lastSpawnTime = 0;
 gameLoop = nt => {
@@ -339,7 +364,7 @@ gameLoop = nt => {
 
   c.font = "90px Impact, Arial";
   setC(1);
-  c.fillText(txt, 20, 50);
+  c.fillText(txt, 20, 150);
 
   switch (s) {
     case 0:
@@ -356,7 +381,6 @@ gameLoop = nt => {
         p.mousex = p.mousey = void 0 //undefined
       }
     case 2:
-      c.fillText("Welcome to Space", 20, 150);
       c.font = "50px Impact, Arial";
       nt > 2.5 && c.fillText("Press anywhere to move", 20, 210);
       setC(4);
@@ -367,37 +391,38 @@ gameLoop = nt => {
       //storyline sequence
       c.font = "45px Impact,Arial";
       setC(2);
-      c.fillText("Welcome Space Ranger", 20, 400)
-      c.fillText("Bilionaire space tourists have been producing a lot of waste", 20, 450)
-      c.fillText("and we're running out of space for new ships. Your job is to", 20, 500)
-      c.fillText("clean up and protect our customers from incoming space waste.", 20, 550)
-      c.fillText("Can you take care of it?", 20, 650)
-    case 4:
-      s == 4 && c.fillText("Good luck, and try not to die!", 20, 400)
-      nt % 1 < .5 && c.fillText("Press to continue", 20, 750)
+      //c.fillText("Hello Space Ranger", 20, 400)
+      c.fillText("Bilionaire space tourists have been producing a lot of waste", 20, 250)
+      c.fillText("and we're running out of space for new ships. Your job is to", 20, 300)
+      c.fillText("clean up and protect our customers from incoming space waste.", 20, 350)
+      c.fillText("Can you take care of it?", 20, 450)
       break
-
+    case 4:
+      c.font = "45px Impact,Arial";
+      setC(2);
+      c.fillText("Recycle as much trash as possible, while protecting the ships", 20, 250)
+      nt % 1 < .5 && c.fillText("Press to start", 20, 350)
+      break
 
     case 9:
       //GAME OVER SCREEN
-      c.fillText("What are you doing ranger!", 20, 512)
       c.font = "30px Impact, Arial";
 
-
-      if (killedPassengers > 1)
-        c.fillText(killedPassengers + " passengers got killed during your shift!", 20, 512 + 100)
-
-
-      if (recycledDebris > 1)
-        c.fillText("At least you recycled " + recycledDebris.toFixed(1) + " tons of trash", 20, 512 + 150)
+      c.fillText("Passengers killed: " + killedPassengers, 20, 512 + 100)
+      c.fillText("Trash recycled: " + recycledDebris.toFixed(1) + "kg", 20, 512 + 150)
+      if (timeSurvived >= 8e3)
+        c.fillText("Total grade: " + getGrade(), 20, 512 + 200)
       p.x = p.y = -1e6
     //no break statement, so the rest of the game will continue running
+
     case 5:
+      txt = ""
       c.font = "30px Impact, Arial";
 
 
       if (nt - lastSpawnTime > 4 && s != 9)
         lastSpawnTime = nt, spawnNewEnemies()
+      timeSurvived += t
 
       //&& only evaluates the right side if the left side is true, its a shorter if statement
       !p.mousex && p.attached.clear() //if the action key isn't pressed, let go of the attached debris
@@ -442,9 +467,19 @@ gameLoop = nt => {
       for (pa of particles)
         pa.upd(nt)
       particles = particles.filter(pa => pa.lif > 0)
+      if (s != 9) {
+        setC(2)
+        c.fillText(`Your shift started ${getH().toFixed(1)}h ago`, 20, 50)
+
+        // if not game over and over 8h survived, end the shift
+        if (getH() >= 8)
+          s = 9, txt = "Good job on your first day"
+      }
 
 
   }
+
+
   if (s != 9)
     playerInteraction()
   requestAnimationFrame(gameLoop)
@@ -453,7 +488,7 @@ gameLoop = nt => {
 playerInteraction = e => {
 
   p.y += p.vy * t
-  p.x += p.vx * t;
+  p.x += p.vx * t
   //Touch movement accelerates the player towards the touch point
 
   if (p.mousex)
@@ -492,7 +527,18 @@ onclick = e => {
   x = e.pageX; y = e.pageY;
   switch (s) {
     case 1: break //cant skip the intro animation
-    default: s++; break// menu clicks, skip menu
+    case 2:
+      zzfxV = .5
+      zzfxR = 44100
+      zzfx = (...t) => zzfxP(zzfxG(...t))
+      zzfxP = (...t) => { let e = zzfxX.createBufferSource(), f = zzfxX.createBuffer(t.length, t[0].length, zzfxR); t.map((d, i) => f.getChannelData(i).set(d)), e.buffer = f, e.connect(zzfxX.destination), e.start(); return e }
+      zzfxG = (q = 1, k = .05, c = 220, e = 0, t = 0, u = .1, r = 0, F = 1, v = 0, z = 0, w = 0, A = 0, l = 0, B = 0, x = 0, G = 0, d = 0, y = 1, m = 0, C = 0) => { let b = 2 * Math.PI, H = v *= 500 * b / zzfxR ** 2, I = (0 < x ? 1 : -1) * b / 4, D = c *= (1 + 2 * k * Math.random() - k) * b / zzfxR, Z = [], g = 0, E = 0, a = 0, n = 1, J = 0, K = 0, f = 0, p, h; e = 99 + zzfxR * e; m *= zzfxR; t *= zzfxR; u *= zzfxR; d *= zzfxR; z *= 500 * b / zzfxR ** 3; x *= b / zzfxR; w *= b / zzfxR; A *= zzfxR; l = zzfxR * l | 0; for (h = e + m + t + u + d | 0; a < h; Z[a++] = f)++K % (100 * G | 0) || (f = r ? 1 < r ? 2 < r ? 3 < r ? Math.sin((g % b) ** 3) : Math.max(Math.min(Math.tan(g), 1), -1) : 1 - (2 * g / b % 2 + 2) % 2 : 1 - 4 * Math.abs(Math.round(g / b) - g / b) : Math.sin(g), f = (l ? 1 - C + C * Math.sin(2 * Math.PI * a / l) : 1) * (0 < f ? 1 : -1) * Math.abs(f) ** F * q * zzfxV * (a < e ? a / e : a < e + m ? 1 - (a - e) / m * (1 - y) : a < e + m + t ? y : a < h - d ? (h - a - d) / u * y : 0), f = d ? f / 2 + (d > a ? 0 : (a < h - d ? 1 : (h - a) / d) * Z[a - d | 0] / 2) : f), p = (c += v += z) * Math.sin(E * x - I), g += p - p * B * (1 - 1E9 * (Math.sin(a) + 1) % 2), E += p - p * B * (1 - 1E9 * (Math.sin(a) ** 2 + 1) % 2), n && ++n > A && (c += w, D += w, n = 0), !l || ++J % l || (c = D, v = H, n = n || 1); return Z }
+      zzfxX = new (window.AudioContext || webkitAudioContext);
+      zzfxM = (n, f, t, e = 125) => { let l, o, z, r, g, h, x, a, u, c, d, i, m, p, G, M = 0, R = [], b = [], j = [], k = 0, q = 0, s = 1, v = {}, w = zzfxR / e * 60 >> 2; for (; s; k++)R = [s = a = d = m = 0], t.map((e, d) => { for (x = f[e][k] || [0, 0, 0], s |= !!f[e][k], G = m + (f[e][0].length - 2 - !a) * w, p = d == t.length - 1, o = 2, r = m; o < x.length + p; a = ++o) { for (g = x[o], u = o == x.length + p - 1 && p || c != (x[0] || 0) | g | 0, z = 0; z < w && a; z++ > w - 99 && u ? i += (i < 1) / 99 : 0)h = (1 - i) * R[M++] / 2 || 0, b[r] = (b[r] || 0) - h * q + h, j[r] = (j[r++] || 0) + h * q + h; g && (i = g % 1, q = x[1] || 0, (g |= 0) && (R = v[[c = x[M = 0] || 0, g]] = v[[c, g]] || (l = [...n[c]], l[2] *= 2 ** ((g - 12) / 12), g > 0 ? zzfxG(...l) : []))) } m = G }); return [b, j] }
+      const music = zzfxM(...[[[1.2, 0, 4e3, , , .03, 2, 1.25, , , , , .02, 6.8, -.3, , .5], [, 0, 35, .002, .02, .08, 3, , , , , , , , , .051, .01], [3, 0, 44, , , .25, , , , , , , , 2]], [[[1, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 13, , 18, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 10, 12, 12, 13, 10, , 13, ,], [, 1, , , 15, , 15, , , , 15, , , , 15, , , , 15, , , , 15, , 27, , 27, , 27, , 27, , , , 8, , , , 8, , , , 8, , , , 8, , , , , , 8, , 8, , , , 8, , 8, , 8, , , ,]], [[1, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, 15, 15, 18, 13, , 18, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 10, 12, 12, 13, 10, , 13, ,], [, -1, , , 15, , 15, , , , 15, , 15, , 15, , , , 15, , , , 15, , , , 15, 27, 27, 27, 15, , , , 8, , , , 8, , , , 8, , , , 8, , , , , , 8, , 8, , , , 8, , 8, , 8, , , ,], [2, , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 20, , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 20, , 20, 32, , , 20, , , ,]], [[1, , 27, 29, 30, 34, 34, 32, 30, 29, 27, 25, 27, 29, 30, 32, 34, , 27, 29, , 32, 34, 32, 30, 29, 27, , 25, , 27, , 8, , 12, , 15, , 8, , 12, , 15, , 20, , 24, , 27, , 20, , 24, , 27, , 34, , 25, , 13, , 10, , 13, ,], [, 1, 15, , 15, , 15, , , , 15, , 15, , 15, , , , 15, , 15, , 15, , , , 15, , , , , , 8, , 8, , 8, , , , 8, , 8, , , , 8, , 8, , , , 8, , 8, , , , 13, , 13, , 8, , 1, ,], [2, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , , 20, 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 30, , 20, , , , 20, , , ,]]], [0, 1, 2, 1, 1, 2], 120, { "title": "action", "instruments": ["P", "syn", "bas"], "patterns": ["a", "b", "c"] }])
+      zzfxP(...music).loop = true
+    default: s++;
+      break// menu clicks, skip menu
     case 5: break//game clicks 
     case 9: setTimeout(e => { location.reload() }, 2e4)// game over
   }
