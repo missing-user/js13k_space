@@ -2,7 +2,7 @@ c = a.getContext`2d`, ot = killedPassengers = recycledDebris = timeSurvived = 0 
 s = 0 //gamestate (0 = menu, 1-5 = game, 9 = game over)
 o = 0
 
-const images = ['sat', 'trash', 'rock', 'asteroid', 'iss', 'cubesat', 'sign', 'hole', 'astronaut', 'touristShip', 'can', 'cash', 'bottle']
+const images = ['sat', 'trash', 'rock', 'asteroid', 'iss', 'cubesat', 'sign', 'hole', 'astronaut', 'touristShip', 'can', 'cash', 'bottle', 'landingStrip']
 for (i in images) {
   let img = new Image
   img.src = `images/${images[i]}.png`
@@ -199,7 +199,7 @@ class PassengerShip extends Target {
       if (collision(p, b))
         //PassengerShip colliding with the player
         s = 9,//game over
-          txt = "You crashed into a spaceship, 0h into your shift",
+          txt = "You crashed into a spaceship",
           spawnParticles(p, 4)
 
 
@@ -243,7 +243,7 @@ class BlackHole extends Target {
       if (collision(p, this))
         //BlackHole colliding with the player
         s = 9, //game over
-          txt = "You fell into a black hole after just 0h",
+          txt = "You fell into a black hole",
           spawnCorpse(p, this)
 
 
@@ -400,7 +400,7 @@ gameLoop = nt => {
     case 4:
       c.font = "45px Impact,Arial";
       setC(2);
-      c.fillText("Recycle as much trash as possible, while protecting the ships", 20, 250)
+      c.fillText("Recycle as much trash as possible, while protecting the tourists", 20, 250)
       nt % 1 < .5 && c.fillText("Press to start", 20, 350)
       break
 
@@ -408,15 +408,15 @@ gameLoop = nt => {
       //GAME OVER SCREEN
       c.font = "30px Impact, Arial";
 
-      c.fillText("Passengers killed: " + killedPassengers, 20, 512 + 100)
-      c.fillText("Trash recycled: " + recycledDebris.toFixed(1) + "kg", 20, 512 + 150)
+      setC(2);
+      c.fillText("Passengers killed: " + killedPassengers, 20, 0 + 100)
+      c.fillText("Trash recycled: " + recycledDebris.toFixed(1) + "kg", 20, 0 + 150)
       if (timeSurvived >= 8e3)
-        c.fillText("Total grade: " + getGrade(), 20, 512 + 200)
+        c.fillText("Total grade: " + getGrade(), 20, 0 + 200)
       p.x = p.y = -1e6
     //no break statement, so the rest of the game will continue running
 
     case 5:
-      txt = ""
       c.font = "30px Impact, Arial";
 
 
@@ -467,20 +467,23 @@ gameLoop = nt => {
       for (pa of particles)
         pa.upd(nt)
       particles = particles.filter(pa => pa.lif > 0)
+
+
+      //draw the player
       if (s != 9) {
         setC(2)
-        c.fillText(`Your shift started ${getH().toFixed(1)}h ago`, 20, 50)
+        c.fillText(`Time: ${getH().toFixed(1)}h`, 20, 50)
+        c.fillText(`Killed passengers: ${killedPassengers}`, 470, 50)
+        c.fillText(`Recycled debris: ${recycledDebris.toFixed(1)}kg`, 980, 50)
 
         // if not game over and over 8h survived, end the shift
         if (getH() >= 8)
           s = 9, txt = "Good job on your first day"
       }
-
-
   }
 
 
-  if (s != 9)
+  if (s != 9 || getH() >= 8)
     playerInteraction()
   requestAnimationFrame(gameLoop)
 }
@@ -528,6 +531,7 @@ onclick = e => {
   switch (s) {
     case 1: break //cant skip the intro animation
     case 2:
+      // music player starts on click
       zzfxV = .5
       zzfxR = 44100
       zzfx = (...t) => zzfxP(zzfxG(...t))
@@ -538,12 +542,15 @@ onclick = e => {
       const music = zzfxM(...[[[1.2, 0, 4e3, , , .03, 2, 1.25, , , , , .02, 6.8, -.3, , .5], [, 0, 35, .002, .02, .08, 3, , , , , , , , , .051, .01], [3, 0, 44, , , .25, , , , , , , , 2]], [[[1, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 13, , 18, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 10, 12, 12, 13, 10, , 13, ,], [, 1, , , 15, , 15, , , , 15, , , , 15, , , , 15, , , , 15, , 27, , 27, , 27, , 27, , , , 8, , , , 8, , , , 8, , , , 8, , , , , , 8, , 8, , , , 8, , 8, , 8, , , ,]], [[1, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, 15, 15, 18, 13, , 18, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 10, 12, 12, 13, 10, , 13, ,], [, -1, , , 15, , 15, , , , 15, , 15, , 15, , , , 15, , , , 15, , , , 15, 27, 27, 27, 15, , , , 8, , , , 8, , , , 8, , , , 8, , , , , , 8, , 8, , , , 8, , 8, , 8, , , ,], [2, , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 20, , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 20, , 20, 32, , , 20, , , ,]], [[1, , 27, 29, 30, 34, 34, 32, 30, 29, 27, 25, 27, 29, 30, 32, 34, , 27, 29, , 32, 34, 32, 30, 29, 27, , 25, , 27, , 8, , 12, , 15, , 8, , 12, , 15, , 20, , 24, , 27, , 20, , 24, , 27, , 34, , 25, , 13, , 10, , 13, ,], [, 1, 15, , 15, , 15, , , , 15, , 15, , 15, , , , 15, , 15, , 15, , , , 15, , , , , , 8, , 8, , 8, , , , 8, , 8, , , , 8, , 8, , , , 8, , 8, , , , 13, , 13, , 8, , 1, ,], [2, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , , 20, 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 30, , 20, , , , 20, , , ,]]], [0, 1, 2, 1, 1, 2], 120, { "title": "action", "instruments": ["P", "syn", "bas"], "patterns": ["a", "b", "c"] }])
       zzfxP(...music).loop = true
     default: s++;
+      txt = ""
       break// menu clicks, skip menu
     case 5: break//game clicks 
     case 9: setTimeout(e => { location.reload() }, 2e4)// game over
   }
 }
 
+
+// handle both touch and mouse events with the same passive listener
 onpointerup = ontouchend = onpointerdown = onpointermove = ontouchmove = e => {
   if (e.touches ? e.touches.length : e.pressure) {
     if (e.touches) e = e.touches[0]
