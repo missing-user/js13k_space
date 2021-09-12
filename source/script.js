@@ -1,16 +1,40 @@
 c = a.getContext`2d`, ot = killedPassengers = recycledDebris = timeSurvived = 0 //title animation time, some temporary variable, old time, score
 s = 0 //gamestate (0 = menu, 1-5 = game, 9 = game over)
 o = 0
+img = new Image
+img.src = "spritesheet.png"
 
-const images = ['sat', 'trash', 'rock', 'asteroid', 'iss', 'cubesat', 'sign', 'hole', 'astronaut', 'touristShip', 'can', 'cash', 'bottle', 'landingStrip']
-for (i in images) {
-  let img = new Image
-  img.src = `images/${images[i]}.png`
-  images[i] = img
-}
-const debrisImages = images.slice(0, 6)
+//image order 
+//    astronaut hole landing p1 s4 r1 r2 r3 r4 s1 s2 s3 trash1 trash2 warning
+//the offsets describe where the sprite is located (x,y,w,h)
+const imageOffsets = [[0, 0, 21, 43],
+[25, 0, 34, 32],
+[63, 0, 26, 36],
+[93, 0, 37, 72],
+[0, 76, 32, 25],
+[126, 87, 43, 52],
+[36, 76, 16, 18],
+[56, 76, 25, 22],
+[85, 76, 27, 18],
+[85, 98, 37, 42],
+[134, 0, 53, 50],
+[134, 54, 27, 29],
+[0, 54, 16, 14],
+[0, 112, 6, 23],
+[0, 144, 106, 13]]
 
-PLAYER_SIZE = 32, COLLECTOR_SIZE = 64, SCALING = 4
+// e is the type of sprite to be rendered, as indexed above
+getW = e => imageOffsets[e][2] * SCALING //width of a sprite
+getH = e => imageOffsets[e][3] * SCALING //height of a sprite
+//renderSprite = (e,x,y) => c.drawImage(img, ...imageOffsets[e],x,y,getW(e), getH(e))
+renderSprite = (e, x, y) => c.drawImage(img,
+  imageOffsets[e][0], imageOffsets[e][1],
+  imageOffsets[e][2], imageOffsets[e][3],
+  x, y,
+  getW(e), getH(e))
+
+PLAYER_SIZE = 32, COLLECTOR_SIZE = 160, SCALING = 4
+
 p = {
   mv: 3, //max velocity, changes with carry weight
   collector: {
@@ -20,7 +44,7 @@ p = {
     h: COLLECTOR_SIZE,
   },
   attached: new Set,
-  image: images[8]
+  image: 0
 }
 p.w = p.h = PLAYER_SIZE //the player
 p.vx = p.vy = p.mousex = p.mousey = 0
@@ -29,14 +53,17 @@ lim = (x, min, max) => x < min ? min : x > max ? max : x; //limits the number to
 collision = (r1, r2) => r1.x + r1.w > r2.x && r1.x < r2.x + r2.w && r2.y + r2.h > r1.y && r2.y < r1.y + r1.h
 
 // Alternative color schemes 'de3c4bfbf5f36699CCe28413000022'
-getC = ci => `#${'ff7e69F2D0A40D1B2AF7F7FF000009458B00'.substr(ci * 6, 6)}`
+//green: 4fdabc
+//regular red:  da4f4f
+//star white: ffffff
+//rred warning sign: fb7d7d
+//black: 000000
+getC = ci => `#${'4fdabcda4f4ffffffffb7d7d000000'.substr(ci * 6, 6)}`
 
 
 document.body.style.background = getC(4)
-//the color order is: enemies, blocks, boosters, player, background
-setC = index => c.fillStyle = c.strokeStyle = getC(index - 1)
+setC = index => c.fillStyle = c.strokeStyle = getC(index)
 rnd = (min, max) => ~~(Math.random() * (max - min) + min)
-rndBool = e => Math.random() > 0.5 //TODO: replace with             new Date&1
 
 
 class Particle {
@@ -62,10 +89,13 @@ class FallIntoHole extends Particle {
   upd() {
     this.x += this.vx -= this.vx / 20
     this.y += this.vy -= this.vy / 20
-    let woff = this.color.width * this.lif / 80 * SCALING, hoff = this.color.height * this.lif / 80 * SCALING
-
     c.globalAlpha = this.lif-- / 40
-    c.drawImage(this.color, this.x - woff / 2, this.y - hoff / 2, woff, hoff)
+
+    c.translate(this.x, this.y)
+    c.scale(this.lif / 80, this.lif / 80)
+    renderSprite(this.color, -getW(this.color) / 2, -getH(this.color) / 2)
+    c.setTransform(1, 0, 0, 1, 0, 0)
+
     c.globalAlpha = 1
   }
 }
@@ -87,17 +117,17 @@ class Star {
 class Debris {
   dead = !1
   constructor() {
-    this.parent = arguments[0] //saves a few lines of code
+    this.parent = arguments[0] //saves a few characters
     //because now every debris has a parent, we can confidently call the parent's properties
     //without having to check if the parent property exists
 
-    this.image = debrisImages[Math.floor(Math.random() * debrisImages.length)]
+    this.image = rnd(4, 13)//random number between 4 and 13, excluding 13. These are the indices for the space debris sprites
+    this.w = getW(this.image)
+    this.h = getH(this.image)
 
-    this.w = this.image.width * SCALING //TODO: don't use in final production, waste of memory
-    this.h = this.image.height * SCALING
-    this.weight = this.w * this.h / 1e4
+    this.weight = this.h * this.w / 1e3
 
-    o = rndBool()
+    o = new Date & 1
     const [x1, y1] = randomPointOnScreenEdge(o)
     this.x = x1 - this.w * o, this.y = y1 - this.h * o
 
@@ -111,7 +141,7 @@ class Debris {
     this.x += this.vx * t
     this.y += this.vy * t
 
-    c.drawImage(this.image, this.x, this.y, this.w, this.h)
+    renderSprite(this.image, this.x, this.y)
 
     if (!this.wihtinScreen) //check if the debris has entered the screen
       this.wihtinScreen = this.x + this.w > 0 && this.x < w && this.y + this.h > 0 && this.y < h
@@ -126,12 +156,14 @@ class Debris {
 }
 
 class TouristTrash extends Debris {
+
   constructor() {
     super(arguments[0])
     this.x = this.parent.x, this.y = this.parent.y
-    this.image = images[Math.floor(Math.random() * 3 + 10)]
-    this.w = this.image.width * SCALING //TODO: don't use in final production, waste of memory
-    this.h = this.image.height * SCALING
+    this.image = new Date & 1 ? 12 : 13 //the trash sprites have index 12 and 13, Date&1 is a short random bool generator (1 or 0)
+
+    this.w = this.h = 50
+    this.weight = .2
   }
 }
 
@@ -140,8 +172,7 @@ class Target {
   constructor(x = rnd(0, w - 120), y = rnd(0, h - 120), countdown = 5) {
     this.x = x
     this.y = y
-    this.w = 120
-    this.h = 112
+    this.h = this.w = 100
     this.remainingCountdown = countdown
   }
   upd(t) {
@@ -151,12 +182,12 @@ class Target {
 
 function randomPointOnScreenEdge(topLeft) {
   const SAFE_EDGE = 50
-  if (rndBool()) return [topLeft ? -SAFE_EDGE : w + SAFE_EDGE, rnd(0, h)]
+  if (new Date & 1) return [topLeft ? -SAFE_EDGE : w + SAFE_EDGE, rnd(0, h)]
   else return [rnd(0, w), topLeft ? -SAFE_EDGE : h + SAFE_EDGE]
 }
 
 class PassengerShip extends Target {
-  image = images[9]
+  image = 3
 
   constructor(x, y, countdown = 3) {
     [x, y] = randomPointOnScreenEdge()
@@ -170,25 +201,21 @@ class PassengerShip extends Target {
   }
   upd(t) {
     super.upd(t)
-    setC(0)
+    c.translate(this.x0, this.y0)
+    c.rotate(Math.atan2(this.vx, -this.vy))
+    for (i = 0; i++ < 16;)
+      renderSprite(2, -getW(2), -getH(2) * i)
 
-    //draw the path
-    c.globalAlpha = .25
-    c.lineWidth = 120
-    c.beginPath()
-    c.moveTo(this.x0, this.y0)
-    c.lineTo(this.x0 + this.vx, this.y0 + this.vy)
-    c.stroke()
+    // Reset transformation matrix to the identity matrix
+    c.setTransform(1, 0, 0, 1, 0, 0);
+
     c.globalAlpha = 1
 
     if (Math.random() < .01)
       gamemap.push(new TouristTrash(this))
 
 
-    if (this.remainingCountdown > 0) {
-      c.fillText("Tourist ship incoming", (this.x0 + this.vx) / 2 + this.w / 2, (this.y0 + this.vy) / 2)
-      c.fillText(this.remainingCountdown.toFixed(1), (this.x0 + this.vx) / 2 + this.w / 2, (this.y0 + this.vy) / 2 + this.h / 2)
-    } else
+    if (this.remainingCountdown < 0)
       //move and draw the ship (comma separated, so it counts as one line and I dont need brackets around the else statement)
       this.x = this.x0 - this.vx * this.remainingCountdown / 5,
         this.y = this.y0 - this.vy * this.remainingCountdown / 5,
@@ -200,7 +227,7 @@ class PassengerShip extends Target {
         //PassengerShip colliding with the player
         s = 9,//game over
           txt = "You crashed into a spaceship",
-          spawnParticles(p, 4)
+          spawnParticles(p, 1)
 
 
       for (let deb of gamemap.filter(element => element instanceof Debris))
@@ -208,33 +235,30 @@ class PassengerShip extends Target {
         if (collision(b, deb) && deb.parent != this)
           deb.dead = !0,
             killedPassengers++,
-            spawnParticles(deb, 2)
+            spawnParticles(deb, 0)
     }
     this.dead |= this.remainingCountdown <= -5 // if it's dead, keep it dead, if not and older than 5s kill it
   }
 }
 
 class BlackHole extends Target {
-  image = images[7]
   size = 1
+  image = 1
   upd(t) {
     super.upd(t)
 
-
-    setC(1)
+    setC(3)
     if (this.remainingCountdown > 0) {
-      //black hole warning, activating
-      c.drawImage(images[6], this.x - 120, this.y, SCALING * images[6].width, SCALING * images[6].height)
-      c.fillText("Wormhole Warning " + this.remainingCountdown.toFixed(1), this.x + 75 - 120, this.y + 37)
+      renderSprite(14, this.x - 120, this.y)//render the warning sign
+      c.fillText("Black hole warning " + this.remainingCountdown.toFixed(1), this.x + 75 - 120, this.y + 37)
     } else {
       //black hole active
-      c.drawImage(this.image, this.x, this.y, this.w, this.h)
+      c.translate(this.x, this.y)
+      c.scale(this.size, this.size)
+      renderSprite(this.image, 0, 0)
+      c.setTransform(1, 0, 0, 1, 0, 0)
 
-      this.w /= this.size
-      this.h /= this.size
       this.size -= 1 * t / 1e3
-      this.w *= this.size
-      this.h *= this.size
     }
 
 
@@ -248,10 +272,10 @@ class BlackHole extends Target {
 
 
       let extendedHb = {
-        x: this.x - 100,
-        y: this.y - 100,
-        w: this.w + 200,
-        h: this.h + 200
+        x: this.x - 160,
+        y: this.y - 160,
+        w: this.w + 320,
+        h: this.h + 320
       }
 
       for (let deb of gamemap.filter(element => element instanceof Debris)) {
@@ -260,11 +284,7 @@ class BlackHole extends Target {
           spawnCorpse(deb, this)
           deb.dead = !0
 
-          this.w /= this.size
-          this.h /= this.size
           this.size = lim(this.size + .1, 0, 1.5) //increase size with each debris swallowed, up to 1.5x
-          this.w *= this.size
-          this.h *= this.size
 
           recycledDebris += deb.weight
         }
@@ -277,13 +297,13 @@ class BlackHole extends Target {
     if (this.size < .2) {
       //tiny black holes collapse
       this.dead = !0
-      spawnParticles(this, 4)
+      spawnParticles(this, 2)
     }
   }
   accelerateTowards(target) {
     const dx = this.x - target.x
     const dy = this.y - target.y
-    const d = Math.sqrt(dx * dx + dy * dy) * 50
+    const d = Math.sqrt(dx * dx + dy * dy) * 20
     target.vx = lim(target.vx + dx / d * t, -3, 3)
     target.vy = lim(target.vy + dy / d * t, -3, 3)
   }
@@ -297,7 +317,15 @@ gamemap = []
 spawnNewEnemies = e => {
   for (i = 0; i < 2; i++) //TODO: adjust the difficulty
     gamemap.push(new Debris)
-  gamemap.push(new (rndBool() ? PassengerShip : BlackHole))
+
+
+  //if theres no Ship, spawn one, if theres no black hole, spawn one
+  if (gamemap.filter(element => element instanceof PassengerShip).length < 1)
+    gamemap.push(new PassengerShip)
+  else if (gamemap.filter(element => element instanceof BlackHole).length < 1)
+    gamemap.push(new BlackHole)
+  else
+    gamemap.push(new (new Date & 1 ? PassengerShip : BlackHole))
 }
 
 particles = [], bg = []
@@ -319,9 +347,9 @@ getGrade = e => {
     grade = "C"
 
 
-  if (recycledDebris < 100)
+  if (recycledDebris < 200)
     grade += "-"
-  else if (recycledDebris > 250)
+  else if (recycledDebris > 500)
     grade += "+"
   else if (recycledDebris > 1000)
     grade += "++"
@@ -336,7 +364,7 @@ spawnCorpse = (target, hole) => {
 
 // converts the time in ms to "working hours" of the shift
 // each h is actually 10 seconds long, 8 working hours => 80s per round
-getH = e => timeSurvived / 1e3
+getT = e => timeSurvived / 1e3
 
 let lastSpawnTime = 0;
 gameLoop = nt => {
@@ -354,16 +382,13 @@ gameLoop = nt => {
   t = (nt - ot) / 7 //calculate delta time and store as t
   ot = nt
   nt /= 1e3 //convert to seconds
-
-  //spawn new enemies each 3 seconds
-
-
   //draw the background and particles
-  setC(4)
+  setC(2)
   for (pa of bg) pa.upd(nt)
 
+  //set the title to green if you win the game
+  setC(s == 8 ? 0 : 1);
   c.font = "90px Impact, Arial";
-  setC(1);
   c.fillText(txt, 20, 150);
 
   switch (s) {
@@ -381,15 +406,15 @@ gameLoop = nt => {
         p.mousex = p.mousey = void 0 //undefined
       }
     case 2:
-      c.font = "50px Impact, Arial";
+      c.font = "40px Impact, Arial";
       nt > 2.5 && c.fillText("Press anywhere to move", 20, 210);
-      setC(4);
+      setC(2);
       nt > 1.2 && !p.mousex && c.fillText("Wow, I'm in space!", 900, 710);
       break
 
     case 3:
       //storyline sequence
-      c.font = "45px Impact,Arial";
+      c.font = "40px Impact,Arial";
       setC(2);
       //c.fillText("Hello Space Ranger", 20, 400)
       c.fillText("Bilionaire space tourists have been producing a lot of waste", 20, 250)
@@ -398,24 +423,40 @@ gameLoop = nt => {
       c.fillText("Can you take care of it?", 20, 450)
       break
     case 4:
-      c.font = "45px Impact,Arial";
+      c.font = "40px Impact,Arial";
       setC(2);
       c.fillText("Recycle as much trash as possible, while protecting the tourists", 20, 250)
       nt % 1 < .5 && c.fillText("Press to start", 20, 350)
       break
 
+    case 8:
+      //You won the game
+      c.font = "40px Impact, Arial";
+      runMainGame()
+      setC(0)
+      c.globalAlpha = .1
+      c.fillRect(0, 20, w, 350)
+      c.globalAlpha = 1
+
+      c.fillText("Passengers killed: " + killedPassengers, 20, 120 + 100)
+      c.fillText("Trash recycled: " + recycledDebris.toFixed(1) + "kg", 20, 120 + 150)
+      c.fillText("Total grade: " + getGrade(), 20, 120 + 200)
+      break
+
     case 9:
       //GAME OVER SCREEN
-      c.font = "30px Impact, Arial";
-
-      setC(2);
-      c.fillText("Passengers killed: " + killedPassengers, 20, 0 + 100)
-      c.fillText("Trash recycled: " + recycledDebris.toFixed(1) + "kg", 20, 0 + 150)
-      if (timeSurvived >= 8e3)
-        c.fillText("Total grade: " + getGrade(), 20, 0 + 200)
+      c.font = "40px Impact, Arial";
+      runMainGame()
+      setC(1)
+      c.globalAlpha = .1
+      c.fillRect(0, 20, w, 350)
+      c.globalAlpha = 1
       p.x = p.y = -1e6
-    //no break statement, so the rest of the game will continue running
 
+      c.fillText("Passengers killed: " + killedPassengers, 20, 120 + 100)
+      c.fillText("Trash recycled: " + recycledDebris.toFixed(1) + "kg", 20, 120 + 150)
+      c.fillText("Time survived: " + getT().toFixed(1) + "h", 20, 120 + 200)
+      break
     case 5:
       c.font = "30px Impact, Arial";
 
@@ -429,8 +470,9 @@ gameLoop = nt => {
 
       //draw all the attached objects and update their velocities
       c.lineWidth = 3;
+      setC(0)
       c.beginPath();
-      p.mv = 3;
+      p.mv = 4;
       p.attached.forEach(b => {
         let px = p.x + p.w / 2, py = p.y + p.h / 2, bx = b.x + b.w / 2, by = b.y + b.h / 2
         c.moveTo(px, py)
@@ -439,53 +481,57 @@ gameLoop = nt => {
         dx = px - bx
         dy = py - by
         if (dx * dx + dy * dy > COLLECTOR_SIZE * COLLECTOR_SIZE)
-          // if the object is too far away, accelerate it towards the player
-          d = Math.sqrt(dx * dx + dy * dy),
-            k = Math.atan2(dy, dx), //TODO: can be simplified somehow
-            b.vx = lim(b.vx + Math.cos(k) * d * 1e-3 * t, -3, 3),
-            b.vy = lim(b.vy + Math.sin(k) * d * 1e-3 * t, -3, 3)
+          // if the object is too far away, accelerate it towards the player by the following factor (larger objects accel slower)
+          d = Math.sqrt(dx * dx + dy * dy) / b.weight * 2e-3 * t,
+            k = Math.atan2(dy, dx), //TODO: can certainly be simplified somehow
+            b.vx = lim(b.vx + Math.cos(k) * d, -4, 4),
+            b.vy = lim(b.vy + Math.sin(k) * d, -4, 4)
 
         b.vx -= b.vx / 90
         b.vy -= b.vy / 90
 
-        p.mv = lim(p.mv - b.weight / 1e6, 1, 3)
+        p.mv = lim(p.mv - b.weight / 50, 1.5, 4)
       })
       c.stroke()
       //delete all the dead objects from attachment
       p.attached = new Set([...p.attached].filter(b => !b.dead))
 
-      //iterate through all game objects like rockets and debris and update interactions
-      for (b of gamemap) {
-        if (b instanceof Debris && collision(p.collector, b) && p.mousex)
-          p.attached.add(b)
-
-        b.upd(t) //update and render objects, they handle their own collisions
-      }
-      gamemap = gamemap.filter(b => !b.dead) // remove dead objects
-
-      //draw special effects and particles
-      for (pa of particles)
-        pa.upd(nt)
-      particles = particles.filter(pa => pa.lif > 0)
+      runMainGame(nt)
 
 
       //draw the player
-      if (s != 9) {
+      if (s < 9) {
         setC(2)
-        c.fillText(`Time: ${getH().toFixed(1)}h`, 20, 50)
+        c.fillText(`Time: ${getT().toFixed(1)}h`, 20, 50)
         c.fillText(`Killed passengers: ${killedPassengers}`, 470, 50)
-        c.fillText(`Recycled debris: ${recycledDebris.toFixed(1)}kg`, 980, 50)
+        c.fillText(`Recycled debris: ${recycledDebris.toFixed(1)}kg`, 950, 50)
 
         // if not game over and over 8h survived, end the shift
-        if (getH() >= 8)
-          s = 9, txt = "Good job on your first day"
+        if (getT() >= 8)
+          s = 8, txt = "Good job on your first day"
       }
   }
 
 
-  if (s != 9 || getH() >= 8)
+  if (s < 9)
     playerInteraction()
   requestAnimationFrame(gameLoop)
+}
+
+//This function updates all game objects except for the player and renders them to canvas
+runMainGame = e => {      //iterate through all game objects like rockets and debris and update interactions
+  for (b of gamemap) {
+    if (b instanceof Debris && collision(p.collector, b) && p.mousex)
+      p.attached.add(b)
+
+    b.upd(t) //update and render objects, they handle their own collisions
+  }
+  gamemap = gamemap.filter(b => !b.dead) // remove dead objects
+
+  //draw special effects and particles
+  for (pa of particles)
+    pa.upd(e)
+  particles = particles.filter(pa => pa.lif > 0)
 }
 
 playerInteraction = e => {
@@ -502,8 +548,7 @@ playerInteraction = e => {
       p.vx = Math.cos(k) * p.mv,
       p.vy = Math.sin(k) * p.mv
   else
-    p.vx *= .97, p.vy *= .97
-
+    p.vx *= .98, p.vy *= .98 //drag force
   p.x = lim(p.x, 0, w - p.w)
   p.y = lim(p.y, 0, h - p.h)
 
@@ -511,11 +556,10 @@ playerInteraction = e => {
 }
 
 drawRotated = e => {
-  c.save();
-  c.translate(e.x + e.image.width * SCALING / 5, e.y + e.image.height * SCALING / 5);
+  c.translate(e.x + getW(e.image) / 5, e.y + getH(e.image) / 5)
   c.rotate(Math.atan2(e.vx, - e.vy))
-  c.drawImage(e.image, -e.image.width * SCALING / 2, -e.image.height * SCALING / 2, e.image.width * SCALING, e.image.height * SCALING)
-  c.restore();
+  renderSprite(e.image, -getW(e.image) / 2, -getH(e.image) / 2)
+  c.setTransform(1, 0, 0, 1, 0, 0)
 }
 
 
@@ -524,12 +568,11 @@ startGame = e => {
   for (i = 120; i--;)
     bg.push(new Star)
 }
-startGame()
+img.onload = startGame
 
 onclick = e => {
   x = e.pageX; y = e.pageY;
   switch (s) {
-    case 1: break //cant skip the intro animation
     case 2:
       // music player starts on click
       zzfxV = .5
@@ -541,14 +584,12 @@ onclick = e => {
       zzfxM = (n, f, t, e = 125) => { let l, o, z, r, g, h, x, a, u, c, d, i, m, p, G, M = 0, R = [], b = [], j = [], k = 0, q = 0, s = 1, v = {}, w = zzfxR / e * 60 >> 2; for (; s; k++)R = [s = a = d = m = 0], t.map((e, d) => { for (x = f[e][k] || [0, 0, 0], s |= !!f[e][k], G = m + (f[e][0].length - 2 - !a) * w, p = d == t.length - 1, o = 2, r = m; o < x.length + p; a = ++o) { for (g = x[o], u = o == x.length + p - 1 && p || c != (x[0] || 0) | g | 0, z = 0; z < w && a; z++ > w - 99 && u ? i += (i < 1) / 99 : 0)h = (1 - i) * R[M++] / 2 || 0, b[r] = (b[r] || 0) - h * q + h, j[r] = (j[r++] || 0) + h * q + h; g && (i = g % 1, q = x[1] || 0, (g |= 0) && (R = v[[c = x[M = 0] || 0, g]] = v[[c, g]] || (l = [...n[c]], l[2] *= 2 ** ((g - 12) / 12), g > 0 ? zzfxG(...l) : []))) } m = G }); return [b, j] }
       const music = zzfxM(...[[[1.2, 0, 4e3, , , .03, 2, 1.25, , , , , .02, 6.8, -.3, , .5], [, 0, 35, .002, .02, .08, 3, , , , , , , , , .051, .01], [3, 0, 44, , , .25, , , , , , , , 2]], [[[1, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 13, , 18, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 10, 12, 12, 13, 10, , 13, ,], [, 1, , , 15, , 15, , , , 15, , , , 15, , , , 15, , , , 15, , 27, , 27, , 27, , 27, , , , 8, , , , 8, , , , 8, , , , 8, , , , , , 8, , 8, , , , 8, , 8, , 8, , , ,]], [[1, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, , 18, , 22, , 15, 15, 15, 18, 13, , 18, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 8, , 12, , 15, , 10, 12, 12, 13, 10, , 13, ,], [, -1, , , 15, , 15, , , , 15, , 15, , 15, , , , 15, , , , 15, , , , 15, 27, 27, 27, 15, , , , 8, , , , 8, , , , 8, , , , 8, , , , , , 8, , 8, , , , 8, , 8, , 8, , , ,], [2, , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 20, , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 20, , 20, 32, , , 20, , , ,]], [[1, , 27, 29, 30, 34, 34, 32, 30, 29, 27, 25, 27, 29, 30, 32, 34, , 27, 29, , 32, 34, 32, 30, 29, 27, , 25, , 27, , 8, , 12, , 15, , 8, , 12, , 15, , 20, , 24, , 27, , 20, , 24, , 27, , 34, , 25, , 13, , 10, , 13, ,], [, 1, 15, , 15, , 15, , , , 15, , 15, , 15, , , , 15, , 15, , 15, , , , 15, , , , , , 8, , 8, , 8, , , , 8, , 8, , , , 8, , 8, , , , 8, , 8, , , , 13, , 13, , 8, , 1, ,], [2, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , 20, , , 20, 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , , , 20, , 30, , 20, , , , 20, , , ,]]], [0, 1, 2, 1, 1, 2], 120, { "title": "action", "instruments": ["P", "syn", "bas"], "patterns": ["a", "b", "c"] }])
       zzfxP(...music).loop = true
-    default: s++;
+    case 4:
+    case 3: s++;
       txt = ""
-      break// menu clicks, skip menu
-    case 5: break//game clicks 
-    case 9: setTimeout(e => { location.reload() }, 2e4)// game over
+      break // menu clicks, skip menu
   }
 }
-
 
 // handle both touch and mouse events with the same passive listener
 onpointerup = ontouchend = onpointerdown = onpointermove = ontouchmove = e => {
