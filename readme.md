@@ -3,7 +3,6 @@
 My entry to the 2021 JS13K competition. Most of the space is wasted on textures (~8kb), followed by the games code (~4kb). Music takes up the least space after compression (~1kb).
 
 Here's the link to the JS13K entry: https://js13kgames.com/entries/no-more-space-in-space
-
 And to the live version on my Website: https://jurasic-park.de/js13k_space/
 
 Interesting findings: 
